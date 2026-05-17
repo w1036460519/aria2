@@ -54,7 +54,13 @@ case "$PLATFORM" in
     if [ "$(uname -m)" = "arm64" ] && [ "$ARCH" = "x86_64" ]; then
       echo "  skip (arm64 host can't always exec x86_64 without Rosetta)"
     else
-      "$BIN" --version | head -3
+      # L2 校验走 .libs/ 的真 Mach-O, 但 L3 运行要走 libtool wrapper
+      # (src/aria2c), 它会自动注入 DYLD_LIBRARY_PATH 指向未 install
+      # 的 dylib; 直接跑 .libs/aria2c 会因库装载路径写死为
+      # /usr/local/lib/libaria2.0.dylib 而 SIGABRT。
+      RUN_BIN="$DIR/src/aria2c"
+      [ -x "$RUN_BIN" ] || RUN_BIN="$BIN"
+      "$RUN_BIN" --version | head -3
     fi
     LIB=$(locate_lib 'libaria2.0.dylib' || true)
     [ -n "$LIB" ] && { echo "[L2] dylib file:"; file "$LIB"; }
