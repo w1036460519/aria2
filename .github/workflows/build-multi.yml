@@ -136,7 +136,9 @@ jobs:
                 ARIA2_STATIC=yes
               make -j"$(nproc)"
               file src/aria2c
-              src/aria2c --version | head -3 || true
+              # 容器内必须能跑 --version (L3 闭环验证),
+              # host 上由于动态库不匹配可能跑不了。
+              src/aria2c --version | head -3
             '
 
       - name: Verify (L2 + L3)

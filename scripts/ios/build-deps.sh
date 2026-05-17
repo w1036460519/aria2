@@ -40,9 +40,12 @@ mkdir -p "$WORK"
 cd "$WORK"
 
 # ---- versions
+# 注意: c-ares 必须用 >= 1.34，旧版本 (1.19/1.21) 在 iOS SDK 下
+# AC_CHECK_TYPE(struct iovec) / AF_INET6 探测会失败，导致
+# ares_setup.h / ares_process.c 自己又定义一份，与系统头冲突。
 ZLIB_VER=1.3.1
-EXPAT_VER=2.5.0
-CARES_VER=1.21.0
+EXPAT_VER=2.6.4
+CARES_VER=1.34.4
 SSH2_VER=1.11.0
 
 fetch() {
@@ -62,7 +65,9 @@ rm -rf zlib-${ZLIB_VER} && tar xf zlib.tgz
 )
 
 echo "================ libexpat $EXPAT_VER ================"
-fetch "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
+# 新版 expat 的 tag 形如 R_2_6_4
+EXPAT_TAG="R_$(echo $EXPAT_VER | tr . _)"
+fetch "https://github.com/libexpat/libexpat/releases/download/${EXPAT_TAG}/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
 rm -rf expat-${EXPAT_VER} && tar xf expat.tbz2
 ( cd expat-${EXPAT_VER}
   ./configure --host="$HOST" --prefix="$PREFIX" \
@@ -73,12 +78,19 @@ rm -rf expat-${EXPAT_VER} && tar xf expat.tbz2
 )
 
 echo "================ c-ares $CARES_VER ================"
-fetch "https://github.com/c-ares/c-ares/releases/download/cares-1_21_0/c-ares-${CARES_VER}.tar.gz" cares.tgz
+# 1.34+ 起 release URL 改为 v$VER 形式
+fetch "https://github.com/c-ares/c-ares/releases/download/v${CARES_VER}/c-ares-${CARES_VER}.tar.gz" cares.tgz
 rm -rf c-ares-${CARES_VER} && tar xf cares.tgz
 ( cd c-ares-${CARES_VER}
+  # 兜底: 即便探测逻辑失败,也告诉 c-ares 这些类型/宏存在
+  # (iOS SDK 必然提供它们)
   ./configure --host="$HOST" --prefix="$PREFIX" \
     --disable-shared --enable-static \
-    --disable-tests
+    --disable-tests \
+    ac_cv_have_struct_iovec=yes \
+    ac_cv_func_recvfrom=yes \
+    ac_cv_func_writev=yes \
+    cares_cv_getaddrinfo=yes
   make -j"$(sysctl -n hw.ncpu)"
   make install
 )

@@ -66,7 +66,15 @@ case "$PLATFORM" in
       x86_64)
         file "$BIN" | grep -qi "x86-64" || { echo "ERR: arch mismatch"; exit 1; }
         echo "[L3] run --version:"
-        "$BIN" --version | head -3
+        # 在 manylinux 容器内编出的二进制,依赖 CentOS 7 的 libssl.so.10 等,
+        # host (Ubuntu 22.04) 上不存在。如 ldd 有缺失库跳过运行调用,
+        # L3 已在容器内 build 步骤跑过。
+        if ldd "$BIN" 2>&1 | grep -q 'not found'; then
+          echo "  skip (host 缺少容器内的依赖库,容器内已验证):"
+          ldd "$BIN" 2>&1 | grep 'not found' | head -5 || true
+        else
+          "$BIN" --version | head -3
+        fi
         ;;
       arm64)
         file "$BIN" | grep -qi "aarch64" || { echo "ERR: arch mismatch"; exit 1; }
