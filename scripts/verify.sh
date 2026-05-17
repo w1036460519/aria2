@@ -22,7 +22,11 @@ echo "================================================================"
 # 在多种可能的目录结构下定位主二进制
 locate_bin() {
   local name="$1"
+  # 优先 .libs/ 下的真二进制。libtool 在启用共享库时,
+  # src/aria2c 实际是 shell wrapper, 真 Mach-O/ELF 在 src/.libs/aria2c。
   for p in \
+      "$DIR/src/.libs/$name" \
+      "$DIR/.libs/$name" \
       "$DIR/src/$name" \
       "$DIR/$name" \
       "$DIR/bin/$name" ; do

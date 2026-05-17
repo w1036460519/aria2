@@ -122,11 +122,14 @@ cd "$BUILD_DIR"
   PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
 make -j"$(nproc)"
-"$STRIP" src/aria2c || true
+# libtool 启用共享库时, src/aria2c 是 shell wrapper, 真 ELF 在 src/.libs/aria2c
+REAL_BIN=src/.libs/aria2c
+[ -f "$REAL_BIN" ] || REAL_BIN=src/aria2c
+"$STRIP" "$REAL_BIN" || true
 
 OUT="$ROOT/android-out/$ABI"
 mkdir -p "$OUT" "$OUT/lib"
-cp src/aria2c "$OUT/aria2c"
+cp "$REAL_BIN" "$OUT/aria2c"
 [ -f src/.libs/libaria2.so ] && cp src/.libs/libaria2.so "$OUT/lib/libaria2.so" || true
 [ -f src/.libs/libaria2.a  ] && cp src/.libs/libaria2.a  "$OUT/lib/libaria2.a"  || true
 

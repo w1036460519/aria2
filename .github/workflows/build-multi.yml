@@ -67,7 +67,7 @@ jobs:
         with:
           name: aria2-macos-${{ matrix.arch }}
           path: |
-            build/src/aria2c
+            build/src/.libs/aria2c
             build/src/.libs/libaria2.*
           if-no-files-found: error
 
@@ -88,13 +88,14 @@ jobs:
       - name: lipo merge
         run: |
           mkdir -p universal/bin universal/lib
-          lipo -create out/arm64/src/aria2c out/x86_64/src/aria2c \
+          # macos artifact 根为 build/src/.libs/, 下载后位于 out/<arch>/aria2c
+          lipo -create out/arm64/aria2c out/x86_64/aria2c \
                -output universal/bin/aria2c
-          # 合并 dylib（Apple TLS 仅有 dylib，没有 .a 时跳过）
-          if [ -f out/arm64/src/.libs/libaria2.0.dylib ] && \
-             [ -f out/x86_64/src/.libs/libaria2.0.dylib ]; then
-            lipo -create out/arm64/src/.libs/libaria2.0.dylib \
-                          out/x86_64/src/.libs/libaria2.0.dylib \
+          # 合并 dylib (Apple TLS 仅有 dylib,没有 .a 时跳过)
+          if [ -f out/arm64/libaria2.0.dylib ] && \
+             [ -f out/x86_64/libaria2.0.dylib ]; then
+            lipo -create out/arm64/libaria2.0.dylib \
+                          out/x86_64/libaria2.0.dylib \
                  -output universal/lib/libaria2.0.dylib
           fi
           file universal/bin/aria2c
@@ -146,9 +147,10 @@ jobs:
                 --enable-libaria2 --with-openssl --disable-nls \
                 ARIA2_STATIC=yes
               make -j"$(nproc)"
-              file src/aria2c
-              # 容器内必须能跑 --version (L3 闭环验证),
-              # host 上由于动态库不匹配可能跑不了。
+              # libtool 启用共享库时真二进制在 .libs/, src/aria2c 是 wrapper。
+              # 在容器内 src/aria2c 可用(wrapper 会 set LD_LIBRARY_PATH 后 exec
+              # .libs/aria2c),所以容器内 L3 还是调 src/aria2c。
+              file src/.libs/aria2c
               src/aria2c --version | head -3
             '
 
@@ -160,7 +162,7 @@ jobs:
         with:
           name: aria2-linux-${{ matrix.arch }}
           path: |
-            build/src/aria2c
+            build/src/.libs/aria2c
             build/src/.libs/libaria2.*
           if-no-files-found: error
 
@@ -184,7 +186,9 @@ jobs:
         run: |
           id=$(docker create aria2-mingw-x64)
           mkdir -p out
-          docker cp "$id":/aria2/src/aria2c.exe out/aria2c.exe
+          # mingw+libtool 亦可能产 wrapper, 优先拷 .libs/ 里的真 exe
+          docker cp "$id":/aria2/src/.libs/aria2c.exe out/aria2c.exe 2>/dev/null \
+            || docker cp "$id":/aria2/src/aria2c.exe out/aria2c.exe
           docker rm "$id"
           file out/aria2c.exe
 
@@ -235,17 +239,22 @@ jobs:
                 LDFLAGS="-L$PREFIX/lib" \
                 PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
               make -j"$(nproc)"
-              ${HOST}-strip src/aria2c.exe || true
-              file src/aria2c.exe
+              # libtool 可能产 wrapper, 真 exe 在 .libs/
+              REAL=src/.libs/aria2c.exe
+              [ -f "$REAL" ] || REAL=src/aria2c.exe
+              ${HOST}-strip "$REAL" || true
+              mkdir -p /work/out-arm64
+              cp "$REAL" /work/out-arm64/aria2c.exe
+              file /work/out-arm64/aria2c.exe
             '
 
       - name: Verify (L2)
-        run: bash scripts/verify.sh windows arm64 build
+        run: bash scripts/verify.sh windows arm64 out-arm64
 
       - uses: actions/upload-artifact@v4
         with:
           name: aria2-windows-arm64
-          path: build/src/aria2c.exe
+          path: out-arm64/aria2c.exe
           if-no-files-found: error
 
   # ============================================================
