@@ -17,21 +17,14 @@ permissions:
 
 jobs:
   # ============================================================
-  # macOS (arm64 + x86_64) → 合并为 universal
-  # arm64 用 macos-14 (Apple Silicon), x86_64 用 macos-13 (Intel)
-  # 都是原生编译,避免交叉编译时 AC_RUN_IFELSE 失败
+  # macOS arm64 (Apple Silicon)
+  # GitHub Hosted Intel runner (macos-13) 已 EOL,
+  # 公共免费池里只剩 arm64; x86_64 需要付费 larger runner
+  # 或 self-hosted Intel。本仓库决定只发 arm64。
   # ============================================================
   macos:
-    name: macos-${{ matrix.arch }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-14
-          - arch: x86_64
-            runner: macos-13
-    runs-on: ${{ matrix.runner }}
+    name: macos-arm64
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -46,12 +39,10 @@ jobs:
       - name: Configure & Build
         run: |
           mkdir -p build && cd build
-          # 强制使用 Apple clang。CI runner 上 Homebrew 依赖可能带入 GNU gcc,
-          # 其 default std 不足 C++11; 而 configure.ac 调用 AX_CXX_COMPILE_STDCXX
-          # 第二参数为空,不会再尝试 -std= 候选。
-          # 另外: Apple clang++ 默认 -std=c++98(与 mainline LLVM 不同),所以
-          # 必须把 -std=gnu++14 直接绑进 CXX 本身,避免被 configure.ac
-          # 第 142 行 "CXXFLAGS=" 清空。
+          # Apple clang++ 默认 -std=c++98, configure.ac 调用
+          # AX_CXX_COMPILE_STDCXX 第二参为空只测 default, 会误报
+          # 不支持 C++11; 同时 configure.ac 会清空 CXXFLAGS,
+          # 所以 -std=gnu++14 必须绑进 $CXX 本身。
           export CC=/usr/bin/clang
           export CXX="/usr/bin/clang++ -std=gnu++14"
           ../configure \
@@ -61,51 +52,17 @@ jobs:
 
       - name: Verify (L2 + L3)
         run: |
-          bash scripts/verify.sh macos ${{ matrix.arch }} build
+          bash scripts/verify.sh macos arm64 build
 
       - uses: actions/upload-artifact@v4
         with:
-          name: aria2-macos-${{ matrix.arch }}
+          name: aria2-macos-arm64
           path: |
             build/src/.libs/aria2c
             build/src/.libs/libaria2.*
           if-no-files-found: error
           # .libs 是隐藏目录, upload-artifact@v4 默认会跳过
           include-hidden-files: true
-
-  macos-universal:
-    name: macos-universal (lipo)
-    needs: macos
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: aria2-macos-arm64
-          path: out/arm64
-      - uses: actions/download-artifact@v4
-        with:
-          name: aria2-macos-x86_64
-          path: out/x86_64
-      - name: lipo merge
-        run: |
-          mkdir -p universal/bin universal/lib
-          # macos artifact 根为 build/src/.libs/, 下载后位于 out/<arch>/aria2c
-          lipo -create out/arm64/aria2c out/x86_64/aria2c \
-               -output universal/bin/aria2c
-          # 合并 dylib (Apple TLS 仅有 dylib,没有 .a 时跳过)
-          if [ -f out/arm64/libaria2.0.dylib ] && \
-             [ -f out/x86_64/libaria2.0.dylib ]; then
-            lipo -create out/arm64/libaria2.0.dylib \
-                          out/x86_64/libaria2.0.dylib \
-                 -output universal/lib/libaria2.0.dylib
-          fi
-          file universal/bin/aria2c
-          universal/bin/aria2c --version | head -3
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aria2-macos-universal
-          path: universal/
 
   # ============================================================
   # Linux (x86_64 + arm64) — manylinux2014 容器保证 glibc 兼容
@@ -179,12 +136,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Patch Dockerfile (gmplib.org 从 runner 常访问超时)
+        run: |
+          cp Dockerfile.mingw Dockerfile.mingw.ci
+          # gmplib.org IP 段在 GitHub Actions runner 上经常不可达;
+          # GMP 在 GNU 官方镜像有完整文件, 换过去即可。
+          sed -i 's|https://gmplib.org/download/gmp/|https://ftp.gnu.org/gnu/gmp/|g' Dockerfile.mingw.ci
+          grep -n 'gmp-' Dockerfile.mingw.ci
+
       - name: Build via Dockerfile.mingw (x86_64)
         run: |
           docker build \
             --build-arg HOST=x86_64-w64-mingw32 \
             --build-arg ARIA2_VERSION=master \
-            -f Dockerfile.mingw -t aria2-mingw-x64 .
+            -f Dockerfile.mingw.ci -t aria2-mingw-x64 .
 
       - name: Extract artifacts
         run: |
@@ -409,7 +374,7 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
-      - macos-universal
+      - macos
       - linux
       - windows-x64
       - windows-arm64
