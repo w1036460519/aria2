@@ -32,20 +32,21 @@ else
 fi
 
 CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2"
-# Apple framework 放 LDFLAGS 里注入。不能放 LIBS=,
-# 那会覆盖 configure 自动探测出的 OPENSSL_LIBS (-lssl -lcrypto)。
+# Apple framework 走 LDFLAGS (libtool 认 -framework 为 ld 选项, 不过滤)。
 # SimpleRandomizer.cc 代码里 __APPLE__ 分支优先于 HAVE_OPENSSL,
-# 无论 TLS 后端选什么,Apple 平台都会调 SecRandomCopyBytes,
-# 所以 Security framework 必须显式链。
-#
-# -lssl -lcrypto 也要手动加: src/Makefile.am 在 ENABLE_LIBARIA2 时
-# 把 OPENSSL_LIBS 只挂在 libaria2.la 上, aria2c 本体没有;
-# 静态归档 + Apple ld 不会从 .la 的 dependency_libs 传递依赖,
-# 以致 SSL_* / X509_* 符号全部 undefined。最干净的旁路是
-# 在 LDFLAGS 里显式加上。
+# Apple 平台都会调 SecRandomCopyBytes → Security framework 必须显式链。
 LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG \
-  -L$DEPS/lib -lssl -lcrypto \
+  -L$DEPS/lib \
   -framework Security -framework CoreFoundation"
+# OpenSSL 静态库走 LIBS 通道才稳:
+# - src/Makefile.am 在 ENABLE_LIBARIA2 时把 OPENSSL_LIBS 只挂在
+#   libaria2.la, aria2c 本体没有; Apple ld 不从 .la 的
+#   dependency_libs 传递 → SSL_*/X509_* undefined。
+# - 走 LDFLAGS 加 -lssl -lcrypto: libtool mode=link 会把 -l 当
+#   deplibs 重新整理, 某些顺序场景下会丢掉。
+# - 走 LIBS: 是 autoconf “基线终极库”, 确定拼到每条
+#   link line 末尾, libtool 也不过滤。与 OPENSSL_LIBS 独立不互冲。
+LIBS_EXTRA="-lssl -lcrypto"
 
 # 设计取舍:
 # - TLS backend: 用 OpenSSL，不用 AppleTLS。
@@ -81,6 +82,7 @@ cd "$BUILD_DIR"
   CXXFLAGS="$CFLAGS_ALL -I$DEPS/include" \
   CPPFLAGS="-I$DEPS/include" \
   LDFLAGS="$LDFLAGS_ALL -L$DEPS/lib" \
+  LIBS="$LIBS_EXTRA" \
   PKG_CONFIG_LIBDIR="$DEPS/lib/pkgconfig" \
   PKG_CONFIG_PATH="$DEPS/lib/pkgconfig"
 
