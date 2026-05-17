@@ -18,14 +18,20 @@ permissions:
 jobs:
   # ============================================================
   # macOS (arm64 + x86_64) → 合并为 universal
+  # arm64 用 macos-14 (Apple Silicon), x86_64 用 macos-13 (Intel)
+  # 都是原生编译,避免交叉编译时 AC_RUN_IFELSE 失败
   # ============================================================
   macos:
     name: macos-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [ arm64, x86_64 ]
-    runs-on: macos-14
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-13
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,10 +48,7 @@ jobs:
           mkdir -p build && cd build
           ../configure \
             --enable-libaria2 --enable-static --disable-nls \
-            --with-appletls --without-gnutls --without-openssl \
-            CFLAGS="-arch ${{ matrix.arch }} -O2" \
-            CXXFLAGS="-arch ${{ matrix.arch }} -O2" \
-            LDFLAGS="-arch ${{ matrix.arch }}"
+            --with-appletls --without-gnutls --without-openssl
           make -j"$(sysctl -n hw.ncpu)"
 
       - name: Verify (L2 + L3)
