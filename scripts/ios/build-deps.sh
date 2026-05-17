@@ -40,11 +40,15 @@ mkdir -p "$WORK"
 cd "$WORK"
 
 # ---- versions
-# 注意: c-ares 必须用 >= 1.34，旧版本 (1.19/1.21) 在 iOS SDK 下
+# c-ares 必须用 >= 1.34，旧版本 (1.19/1.21) 在 iOS SDK 下
 # AC_CHECK_TYPE(struct iovec) / AF_INET6 探测会失败，导致
 # ares_setup.h / ares_process.c 自己又定义一份，与系统头冲突。
+# OpenSSL 3.0.x 是 LTS (支持到 2026-09以后)，iOS 换下 OpenSSL
+# 是因为 Apple Security framework 的 SSLContextRef API 在 iOS 13+
+# 已 deprecated，到 iOS 17 SDK 部分符号已 unavailable。
 ZLIB_VER=1.3.1
 EXPAT_VER=2.6.4
+OPENSSL_VER=3.0.16
 CARES_VER=1.34.4
 SSH2_VER=1.11.0
 
@@ -95,26 +99,42 @@ rm -rf c-ares-${CARES_VER} && tar xf cares.tgz
   make install
 )
 
+echo "================ OpenSSL $OPENSSL_VER ================"
+fetch "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" openssl.tgz
+rm -rf openssl-${OPENSSL_VER} && tar xf openssl.tgz
+(
+  cd openssl-${OPENSSL_VER}
+  # OpenSSL Configure 不读环境 CC，也不能多出一堆 -arch/-isysroot;
+  # 它靠 CROSS_TOP/CROSS_SDK 加 ios64-cross/iossimulator-xcrun target 自己拼。
+  # 临时 unset 我们给其他包设的 CC/CXX，避免双重 flag。
+  case "$SDK-$ARCH" in
+    iphoneos-arm64)         OS_TARGET=ios64-cross ;;
+    iphonesimulator-arm64)  OS_TARGET=iossimulator-xcrun ;;
+    iphonesimulator-x86_64) OS_TARGET=iossimulator-xcrun ;;
+    *) echo "unknown OpenSSL target: $SDK-$ARCH" >&2; exit 1 ;;
+  esac
+  export CROSS_TOP="${SDKPATH%/SDKs/*}"
+  export CROSS_SDK="${SDKPATH##*/}"
+  ( unset CC CXX CFLAGS CXXFLAGS LDFLAGS
+    ./Configure "$OS_TARGET" \
+      no-shared no-tests no-dso no-async no-engine no-ui-console \
+      --prefix="$PREFIX"
+    make -j"$(sysctl -n hw.ncpu)"
+    make install_sw
+  )
+)
+
 echo "================ libssh2 $SSH2_VER ================"
 fetch "https://libssh2.org/download/libssh2-${SSH2_VER}.tar.bz2" ssh2.tbz2
 rm -rf libssh2-${SSH2_VER} && tar xf ssh2.tbz2
 ( cd libssh2-${SSH2_VER}
-  # iOS 上不带 OpenSSL，使用 mbedtls 不可得，这里改用 nettle? 实际上
-  # libssh2 在没有 crypto backend 时会编译失败，因此这里启用 wincng?
-  # iOS 没有 wincng；对应方案是关闭 ssh2 支持。
-  # 这里我们让 configure 自动选择，若失败将由调用者决定 --without-libssh2。
+  # 现在有 OpenSSL 了，libssh2 能顺利拿 openssl 做 crypto backend
   ./configure --host="$HOST" --prefix="$PREFIX" \
     --disable-shared --enable-static \
     --disable-examples-build \
-    --without-libgcrypt --without-mbedtls \
-    --with-crypto=openssl 2>/dev/null || \
-  ./configure --host="$HOST" --prefix="$PREFIX" \
-    --disable-shared --enable-static \
-    --disable-examples-build \
-    --with-crypto=mbedtls 2>/dev/null || \
-  { echo "[warn] libssh2 configure failed (no usable crypto on iOS); skipping"; exit 0; }
-  make -j"$(sysctl -n hw.ncpu)" || echo "[warn] libssh2 build failed; skipping"
-  make install || true
+    --with-crypto=openssl --with-libssl-prefix="$PREFIX"
+  make -j"$(sysctl -n hw.ncpu)"
+  make install
 )
 
 echo "[OK] iOS deps installed to: $PREFIX"

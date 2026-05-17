@@ -34,11 +34,14 @@ fi
 CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2 -fembed-bitcode"
 LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
-# 关键: configure.ac 第 142 行在 AX_CXX_COMPILE_STDCXX 之前会清空 CXXFLAGS,
-# 导致 -arch / -isysroot 丢失, 探测程序找不到 iOS SDK 的 C++ 标准库头。
-# 另外 Apple clang++ 命令行默认 -std=c++98 会让 __cplusplus<201103L,
-# 使 testbody 内 #error "This is not a C++11 compiler" 触发, 同样被误判。
-# 解法是把这些必须保持的 flag 都直接绑进 CC/CXX 本身。
+# 设计取舍:
+# - TLS backend: 用 OpenSSL，不用 AppleTLS。
+#   AppleTLS (SSLContextRef / kTLSProtocol1*) 在 iOS 13+ 已 deprecated，
+#   iOS 17.5 SDK 已将警告升为 error，编译 AppleTLSSession.cc 会挂。
+# - C++11 探测: configure.ac 在 AX_CXX_COMPILE_STDCXX 之前会清空
+#   CXXFLAGS，-arch / -isysroot 会丢; Apple clang++ 另外默认
+#   -std=c++98，会抖 #error “This is not a C++11 compiler”。
+#   两点都靠把 flag 直接绑进 CC/CXX 本身解决。
 export CC="$CLANG -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG -std=gnu++14"
 export AR=$(xcrun --sdk "$SDK" --find ar)
@@ -55,10 +58,12 @@ cd "$BUILD_DIR"
 ../configure \
   --host="$HOST" \
   --enable-libaria2 --enable-static --disable-shared --disable-nls \
-  --with-appletls --without-gnutls --without-openssl \
+  --without-appletls --without-gnutls --with-openssl \
   --without-libxml2 --with-libexpat \
   --without-sqlite3 \
   --with-libcares --with-libz $SSH2_OPT \
+  OPENSSL_CFLAGS="-I$DEPS/include" \
+  OPENSSL_LIBS="-L$DEPS/lib -lssl -lcrypto" \
   CFLAGS="$CFLAGS_ALL -I$DEPS/include" \
   CXXFLAGS="$CFLAGS_ALL -I$DEPS/include" \
   CPPFLAGS="-I$DEPS/include" \
