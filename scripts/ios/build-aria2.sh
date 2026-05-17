@@ -37,7 +37,15 @@ CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2"
 # SimpleRandomizer.cc 代码里 __APPLE__ 分支优先于 HAVE_OPENSSL,
 # 无论 TLS 后端选什么,Apple 平台都会调 SecRandomCopyBytes,
 # 所以 Security framework 必须显式链。
-LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -framework Security -framework CoreFoundation"
+#
+# -lssl -lcrypto 也要手动加: src/Makefile.am 在 ENABLE_LIBARIA2 时
+# 把 OPENSSL_LIBS 只挂在 libaria2.la 上, aria2c 本体没有;
+# 静态归档 + Apple ld 不会从 .la 的 dependency_libs 传递依赖,
+# 以致 SSL_* / X509_* 符号全部 undefined。最干净的旁路是
+# 在 LDFLAGS 里显式加上。
+LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG \
+  -L$DEPS/lib -lssl -lcrypto \
+  -framework Security -framework CoreFoundation"
 
 # 设计取舍:
 # - TLS backend: 用 OpenSSL，不用 AppleTLS。
