@@ -70,6 +70,8 @@ jobs:
             build/src/.libs/aria2c
             build/src/.libs/libaria2.*
           if-no-files-found: error
+          # .libs 是隐藏目录, upload-artifact@v4 默认会跳过
+          include-hidden-files: true
 
   macos-universal:
     name: macos-universal (lipo)
@@ -165,6 +167,8 @@ jobs:
             build/src/.libs/aria2c
             build/src/.libs/libaria2.*
           if-no-files-found: error
+          # .libs 是隐藏目录, upload-artifact@v4 默认会跳过
+          include-hidden-files: true
 
   # ============================================================
   # Windows x86_64 — 复用项目自带 Dockerfile.mingw
