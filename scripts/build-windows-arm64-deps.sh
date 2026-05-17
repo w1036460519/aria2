@@ -13,8 +13,10 @@ WORK=/tmp/win-arm64-deps
 mkdir -p "$WORK" && cd "$WORK"
 
 ZLIB_VER=1.3.1
-EXPAT_VER=2.5.0
-CARES_VER=1.21.0
+EXPAT_VER=2.6.4
+# c-ares: 必须使用 >= 1.34, 旧版 (1.21) 在 llvm-mingw aarch64 下
+# 未正确包含 <iphlpapi.h>, 导致 if_indextoname 隐式声明报错。
+CARES_VER=1.34.4
 SSH2_VER=1.11.0
 
 fetch() { [ -f "$2" ] || curl -L -o "$2" "$1"; }
@@ -36,7 +38,8 @@ rm -rf zlib-${ZLIB_VER} && tar xf zlib.tgz
 )
 
 echo "================ libexpat $EXPAT_VER ================"
-fetch "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
+EXPAT_TAG="R_$(echo $EXPAT_VER | tr . _)"
+fetch "https://github.com/libexpat/libexpat/releases/download/${EXPAT_TAG}/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
 rm -rf expat-${EXPAT_VER} && tar xf expat.tbz2
 ( cd expat-${EXPAT_VER}
   ./configure --host="$HOST" --prefix="$PREFIX" \
@@ -46,7 +49,8 @@ rm -rf expat-${EXPAT_VER} && tar xf expat.tbz2
 )
 
 echo "================ c-ares $CARES_VER ================"
-fetch "https://github.com/c-ares/c-ares/releases/download/cares-1_21_0/c-ares-${CARES_VER}.tar.gz" cares.tgz
+# 1.34+ 起 release URL 改为 v$VER 形式
+fetch "https://github.com/c-ares/c-ares/releases/download/v${CARES_VER}/c-ares-${CARES_VER}.tar.gz" cares.tgz
 rm -rf c-ares-${CARES_VER} && tar xf cares.tgz
 ( cd c-ares-${CARES_VER}
   ./configure --host="$HOST" --prefix="$PREFIX" \

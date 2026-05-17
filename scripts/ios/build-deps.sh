@@ -29,8 +29,8 @@ CFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -fembed-bitcode -O2"
 CXXFLAGS="$CFLAGS"
 LDFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
-export CC="$CLANG"
-export CXX="$CLANGXX"
+export CC="$CLANG -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
+export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 export CFLAGS CXXFLAGS LDFLAGS
 export AR=$(xcrun --sdk "$SDK" --find ar)
 export RANLIB=$(xcrun --sdk "$SDK" --find ranlib)

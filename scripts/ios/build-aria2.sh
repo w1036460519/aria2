@@ -34,8 +34,11 @@ fi
 CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2 -fembed-bitcode"
 LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
-export CC="$CLANG"
-export CXX="$CLANGXX"
+# 关键: configure.ac 第 142 行在 AX_CXX_COMPILE_STDCXX 之前会清空 CXXFLAGS,
+# 导致 -arch / -isysroot 丢失, 探测程序找不到 iOS SDK 的 C++ 标准库头。
+# 解法是把这些 flag 直接绑进 CC/CXX 本身,让它们被隐含在“编译器调用”里。
+export CC="$CLANG -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
+export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 export AR=$(xcrun --sdk "$SDK" --find ar)
 export RANLIB=$(xcrun --sdk "$SDK" --find ranlib)
 

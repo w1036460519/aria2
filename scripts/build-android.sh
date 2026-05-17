@@ -33,14 +33,18 @@ export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
 export STRIP="$TOOLCHAIN/bin/llvm-strip"
 export CC="$TOOLCHAIN/bin/${HOST}${API}-clang"
 export CXX="$TOOLCHAIN/bin/${HOST}${API}-clang++"
+# 所有依赖必须用 -fPIC 编译，否则后面链入 libaria2.so
+# 时 aarch64 会报 R_AARCH64_ADR_PREL_PG_HI21 cannot be used 。
+export CFLAGS="-fPIC -O2"
+export CXXFLAGS="-fPIC -O2"
 PREFIX="$ROOT/android-deps/$ABI"
 mkdir -p "$PREFIX"
 
 # ----------------------------- deps versions
 OPENSSL_VER=1.1.1w
-EXPAT_VER=2.5.0
+EXPAT_VER=2.6.4
 ZLIB_VER=1.3.1
-CARES_VER=1.21.0
+CARES_VER=1.34.4
 SSH2_VER=1.11.0
 
 WORK="$ROOT/android-build/$ABI"
@@ -53,17 +57,18 @@ fetch "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" openssl.tgz
 rm -rf openssl-${OPENSSL_VER} && tar xf openssl.tgz
 ( cd openssl-${OPENSSL_VER}
   ANDROID_NDK_HOME="$NDK" PATH="$TOOLCHAIN/bin:$PATH" \
-    ./Configure no-shared --prefix="$PREFIX" "$OPENSSL_TARGET" -D__ANDROID_API__=$API
+    ./Configure no-shared -fPIC --prefix="$PREFIX" "$OPENSSL_TARGET" -D__ANDROID_API__=$API
   make -j"$(nproc)"
   make install_sw
 )
 
 echo "================ libexpat $EXPAT_VER ================"
-fetch "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
+EXPAT_TAG="R_$(echo $EXPAT_VER | tr . _)"
+fetch "https://github.com/libexpat/libexpat/releases/download/${EXPAT_TAG}/expat-${EXPAT_VER}.tar.bz2" expat.tbz2
 rm -rf expat-${EXPAT_VER} && tar xf expat.tbz2
 ( cd expat-${EXPAT_VER}
   ./configure --host="$BINPREFIX" --build="$(dpkg-architecture -qDEB_BUILD_GNU_TYPE)" \
-    --prefix="$PREFIX" --disable-shared
+    --prefix="$PREFIX" --disable-shared --with-pic
   make -j"$(nproc)" install
 )
 
@@ -71,16 +76,18 @@ echo "================ zlib $ZLIB_VER ================"
 fetch "https://github.com/madler/zlib/releases/download/v${ZLIB_VER}/zlib-${ZLIB_VER}.tar.gz" zlib.tgz
 rm -rf zlib-${ZLIB_VER} && tar xf zlib.tgz
 ( cd zlib-${ZLIB_VER}
+  # zlib 的 configure 没有 --with-pic, 依赖上面 export 的 CFLAGS=-fPIC
   ./configure --prefix="$PREFIX" --static
   make -j"$(nproc)" install
 )
 
 echo "================ c-ares $CARES_VER ================"
-fetch "https://github.com/c-ares/c-ares/releases/download/cares-1_21_0/c-ares-${CARES_VER}.tar.gz" cares.tgz
+# 1.34+ 起 release URL 为 v$VER 形式
+fetch "https://github.com/c-ares/c-ares/releases/download/v${CARES_VER}/c-ares-${CARES_VER}.tar.gz" cares.tgz
 rm -rf c-ares-${CARES_VER} && tar xf cares.tgz
 ( cd c-ares-${CARES_VER}
   ./configure --host="$BINPREFIX" --build="$(dpkg-architecture -qDEB_BUILD_GNU_TYPE)" \
-    --prefix="$PREFIX" --disable-shared
+    --prefix="$PREFIX" --disable-shared --with-pic
   make -j"$(nproc)" install
 )
 
@@ -89,7 +96,7 @@ fetch "https://libssh2.org/download/libssh2-${SSH2_VER}.tar.bz2" ssh2.tbz2
 rm -rf libssh2-${SSH2_VER} && tar xf ssh2.tbz2
 ( cd libssh2-${SSH2_VER}
   ./configure --host="$BINPREFIX" --build="$(dpkg-architecture -qDEB_BUILD_GNU_TYPE)" \
-    --prefix="$PREFIX" --disable-shared
+    --prefix="$PREFIX" --disable-shared --with-pic
   make -j"$(nproc)" install
 )
 
