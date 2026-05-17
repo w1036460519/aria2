@@ -33,6 +33,11 @@ fi
 
 CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2"
 LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
+# SimpleRandomizer.cc 代码里 __APPLE__ 分支优先于 HAVE_OPENSSL,
+# 无论 TLS 后端选什么,Apple 平台都会调 SecRandomCopyBytes,
+# 所以 Security framework 必须显式链。以前靠 --with-appletls
+# 隐含带进来, 现在切 OpenSSL 后丢了, 手动补上。
+APPLE_FRAMEWORKS="-framework Security -framework CoreFoundation"
 
 # 设计取舍:
 # - TLS backend: 用 OpenSSL，不用 AppleTLS。
@@ -68,6 +73,7 @@ cd "$BUILD_DIR"
   CXXFLAGS="$CFLAGS_ALL -I$DEPS/include" \
   CPPFLAGS="-I$DEPS/include" \
   LDFLAGS="$LDFLAGS_ALL -L$DEPS/lib" \
+  LIBS="$APPLE_FRAMEWORKS" \
   PKG_CONFIG_LIBDIR="$DEPS/lib/pkgconfig" \
   PKG_CONFIG_PATH="$DEPS/lib/pkgconfig"
 
