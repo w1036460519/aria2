@@ -36,9 +36,11 @@ LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
 # 关键: configure.ac 第 142 行在 AX_CXX_COMPILE_STDCXX 之前会清空 CXXFLAGS,
 # 导致 -arch / -isysroot 丢失, 探测程序找不到 iOS SDK 的 C++ 标准库头。
-# 解法是把这些 flag 直接绑进 CC/CXX 本身,让它们被隐含在“编译器调用”里。
+# 另外 Apple clang++ 命令行默认 -std=c++98 会让 __cplusplus<201103L,
+# 使 testbody 内 #error "This is not a C++11 compiler" 触发, 同样被误判。
+# 解法是把这些必须保持的 flag 都直接绑进 CC/CXX 本身。
 export CC="$CLANG -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
-export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
+export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG -std=gnu++14"
 export AR=$(xcrun --sdk "$SDK" --find ar)
 export RANLIB=$(xcrun --sdk "$SDK" --find ranlib)
 

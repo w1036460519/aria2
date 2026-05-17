@@ -30,7 +30,7 @@ CXXFLAGS="$CFLAGS"
 LDFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
 export CC="$CLANG -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
-export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
+export CXX="$CLANGXX -arch $ARCH -isysroot $SDKPATH $MIN_FLAG -std=gnu++14"
 export CFLAGS CXXFLAGS LDFLAGS
 export AR=$(xcrun --sdk "$SDK" --find ar)
 export RANLIB=$(xcrun --sdk "$SDK" --find ranlib)

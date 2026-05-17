@@ -48,9 +48,12 @@ jobs:
           mkdir -p build && cd build
           # 强制使用 Apple clang。CI runner 上 Homebrew 依赖可能带入 GNU gcc,
           # 其 default std 不足 C++11; 而 configure.ac 调用 AX_CXX_COMPILE_STDCXX
-          # 第二参数为空,不会再尝试 -std= 候选。Apple clang 默认 gnu++14+。
+          # 第二参数为空,不会再尝试 -std= 候选。
+          # 另外: Apple clang++ 默认 -std=c++98(与 mainline LLVM 不同),所以
+          # 必须把 -std=gnu++14 直接绑进 CXX 本身,避免被 configure.ac
+          # 第 142 行 "CXXFLAGS=" 清空。
           export CC=/usr/bin/clang
-          export CXX=/usr/bin/clang++
+          export CXX="/usr/bin/clang++ -std=gnu++14"
           ../configure \
             --enable-libaria2 --enable-static --disable-nls \
             --with-appletls --without-gnutls --without-openssl
