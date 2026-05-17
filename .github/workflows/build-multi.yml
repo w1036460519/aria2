@@ -283,8 +283,10 @@ jobs:
           if-no-files-found: error
 
   # ============================================================
-  # iOS — arm64 真机 + arm64 模拟器 + x86_64 模拟器
-  # 输出 aria2.xcframework
+  # iOS — arm64 真机 + arm64 模拟器
+  # macOS 已只保留 arm64, iOS 模拟器同步只发 arm64;
+  # Intel Mac 上跳 simulator-x86_64 属少数场景, 不产。
+  # 输出 aria2.xcframework (device-arm64 + simulator-arm64)
   # ============================================================
   ios:
     name: ios-${{ matrix.target }}
@@ -298,9 +300,6 @@ jobs:
           - target: simulator-arm64
             sdk: iphonesimulator
             arch: arm64
-          - target: simulator-x86_64
-            sdk: iphonesimulator
-            arch: x86_64
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -339,27 +338,14 @@ jobs:
         with:
           name: aria2-ios-simulator-arm64
           path: in/simulator-arm64
-      - uses: actions/download-artifact@v4
-        with:
-          name: aria2-ios-simulator-x86_64
-          path: in/simulator-x86_64
-
-      - name: Merge simulator slices via lipo
-        run: |
-          mkdir -p sim-merged/lib sim-merged/include
-          lipo -create \
-            in/simulator-arm64/lib/libaria2.a \
-            in/simulator-x86_64/lib/libaria2.a \
-            -output sim-merged/lib/libaria2.a
-          cp -R in/simulator-arm64/include/. sim-merged/include/
 
       - name: Create xcframework
         run: |
           xcodebuild -create-xcframework \
             -library in/device-arm64/lib/libaria2.a \
             -headers in/device-arm64/include \
-            -library sim-merged/lib/libaria2.a \
-            -headers sim-merged/include \
+            -library in/simulator-arm64/lib/libaria2.a \
+            -headers in/simulator-arm64/include \
             -output aria2.xcframework
           ls -la aria2.xcframework
 

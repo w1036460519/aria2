@@ -3,13 +3,13 @@
 #   zlib / libexpat / c-ares / libssh2
 # 用法: build-deps.sh <sdk> <arch>
 #   sdk : iphoneos | iphonesimulator
-#   arch: arm64 | x86_64
+#   arch: arm64
 # 安装到: $PWD/ios-deps/<sdk>-<arch>/{include,lib}
 
 set -euo pipefail
 
 SDK="${1:?sdk required (iphoneos|iphonesimulator)}"
-ARCH="${2:?arch required (arm64|x86_64)}"
+ARCH="${2:?arch required (arm64)}"
 
 ROOT="$PWD"
 PREFIX="$ROOT/ios-deps/${SDK}-${ARCH}"
@@ -110,7 +110,6 @@ rm -rf openssl-${OPENSSL_VER} && tar xf openssl.tgz
   case "$SDK-$ARCH" in
     iphoneos-arm64)         OS_TARGET=ios64-cross ;;
     iphonesimulator-arm64)  OS_TARGET=iossimulator-xcrun ;;
-    iphonesimulator-x86_64) OS_TARGET=iossimulator-xcrun ;;
     *) echo "unknown OpenSSL target: $SDK-$ARCH" >&2; exit 1 ;;
   esac
   export CROSS_TOP="${SDKPATH%/SDKs/*}"

@@ -2,7 +2,7 @@
 # 为 iOS 交叉编译 aria2 静态库
 # 用法: build-aria2.sh <sdk> <arch>
 #   sdk : iphoneos | iphonesimulator
-#   arch: arm64 | x86_64
+#   arch: arm64
 # 输出到: $PWD/ios-out/<sdk>-<arch>/lib/libaria2.a + include/
 
 set -euo pipefail
