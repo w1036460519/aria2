@@ -31,7 +31,7 @@ else
   SSH2_OPT="--without-libssh2"
 fi
 
-CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2 -fembed-bitcode"
+CFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2"
 LDFLAGS_ALL="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
 # 设计取舍:

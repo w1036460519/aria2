@@ -25,7 +25,7 @@ case "$SDK" in
   *) echo "unknown sdk: $SDK" >&2; exit 1 ;;
 esac
 
-CFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -fembed-bitcode -O2"
+CFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG -O2"
 CXXFLAGS="$CFLAGS"
 LDFLAGS="-arch $ARCH -isysroot $SDKPATH $MIN_FLAG"
 
